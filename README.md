@@ -82,9 +82,11 @@ All data is sent in one payload. The exact contents of the payload will depend o
 ![image](https://github.com/user-attachments/assets/1edb058c-8b34-4fa5-9359-aedfd23daa93)
 
 #### Step 2: Create entities from the received payload
-Since the data from the B2500 is received as a single payload/string, it is required to extract the data from this string and parse it to entities. In the documentation accessable via the MQTT configuration the contends of the payload are described:
-
-![image](https://github.com/user-attachments/assets/58e4276b-2a68-458a-a644-5952af2dfcc3)
+Since the data from the B2500 is received as a single payload/string, it is required to extract the data from this string and parse it to entities.
+> [!TIP]
+> In the documentation accessable via the MQTT configuration the contends of the payload are described:
+> 
+> ![image](https://github.com/user-attachments/assets/58e4276b-2a68-458a-a644-5952af2dfcc3)
 
 With the following entry into the *configuration.yaml* file of home assistant, the B2500 payload is parsed into entities which can be used as sensors.
 > [!TIP]
@@ -398,6 +400,15 @@ Since the power is measured on the energy meter ````tasmota_lk13be_current```` a
 ````
 
 The next helper entity calculates the power setpoint ````solar_battery_output_power_setpoint```` based on the intended power on the electricity meter. For the intended power on the electricity meter an input number helper entity is used which enables also setpoints apart from zero.
+> [!TIP]
+> It can be useful to stay slightly above 0 watts as the intended power on the electricity meter.
+> This way small fluctuations will not cause energy from the battery being "lost" into the powergrid.
+> This might be relevant if you don't receive any money from the energy provider when feeding energy back into the power grid.
+> In this case it is more feasable to keep the energy in your battery until you might need it at night or on rainy days.
+>
+> ![image](https://github.com/user-attachments/assets/32e90ef1-616a-4e86-b8d9-a15567674df8)
+
+
 ````
 {{ states('sensor.electrical_consumption') | float(0)
 - states('input_number.electricity_meter_power_setpoint') | float(0) }}
