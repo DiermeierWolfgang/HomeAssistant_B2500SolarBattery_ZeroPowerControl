@@ -22,7 +22,7 @@ As shown in the picture, the DC cables of the panels pass through the wall and c
 
 ### IR reading head
 > [!IMPORTANT]
-> You will need a 5V USB supply in your fuse box for the IR reading head.
+> A 5V USB supply in the fuse box is required to supply the IR reading head.
 
 The IR reading head is used to extract the power reading from the smart meter installed by the electricity provider inside your fuse box.
 Measuring the power on the smart meter is required to implement the zero power control in home assitant.
@@ -31,8 +31,8 @@ There are also other versions from different manufacturers avaliable.
 It must be placed on the optical interface of the smart meter.
 > [!TIP]
 > There are some smart meters with dimm IR transmitters in the optical interface which makes it impossible for the IR reading head to receive information.
-> You can check this by filming the optical interface with a camera which makes the emitted IR light visible.
-> In my case (Logarex smart meter) this required me to adjust the sensitivity of the IR reading head by soldering a different resistor to the voltage divider.
+> You can check this by filming the optical interface with a camera which makes the emitted IR light visible to the human eye.
+> In my case (Logarex smart meter) this required me to increase the sensitivity of the IR reading head by soldering a different resistor to the voltage divider.
 
 ## Integrate the components to Home Assistant
 > [!IMPORTANT]
@@ -54,10 +54,14 @@ As you can see in the description in the app there can be deviations in the inte
 
 ![image](https://github.com/user-attachments/assets/ce7dc5b4-0ca9-4657-b86d-b01be6329350)
 
+Personal experience also proves this statement.
 To eliminate this problem the B2500 solar battery can also be controlled via MQTT.
-By default MQTT is disabled and can be enabled through the [cloud service](https://eu.hamedata.com/app/AfterSales/index.html).
+
+#### Step 1: Configure MQTT using the power zero app
 > [!WARNING]
 > Enabling MQTT will void the warranty of the B2500 solar battery.
+
+By default MQTT is disabled and can be enabled through the [cloud service](https://eu.hamedata.com/app/AfterSales/index.html).
 
 After MQTT is enabled a new section will appear in your settings within the power zero app.
 Fill out the data with your MQTT broker details from home assistant.
@@ -67,11 +71,405 @@ Fill out the data with your MQTT broker details from home assistant.
 
 If the setup was correct you should be able to request and receive data of the B2500 via home assistant.
 
-Request data:
+The current data can be requested by sending the payload cd=01 on the publication topic mentioned in the MQTT configuration of the B2500 hame_energy/HMK-2/App/DEVICE-ID/ctrl:
 
 ![image](https://github.com/user-attachments/assets/4d59ef68-932e-40cc-bb06-41c9e98841a2)
 
-
-Received data:
+The B2500 will return the current data on the subscription topic hame_energy/HMK-2/device/DEVICE-ID/ctrl.
+All data is sent in one payload. The exact contents of the payload will depend on the version of the solar battery and will look similar to this:
+> p1=1,p2=1,w1=32,w2=27,pe=21,vv=216,sv=17,cs=0,cd=0,am=0,o1=1,o2=1,do=90,lv=240,cj=2,kn=918,g1=120,g2=119,b1=0,b2=1,md=0,d1=1,e1=0:0,f1=23:59,h1=240,d2=0,e2=0:0,f2=23:59,h2=0,d3=0,e3=0:0,f3=23:59,h3=0,sg=0,sp=80,st=0,tl=20,th=21,tc=0,tf=0,fc=202310231502,id=5,a0=10,a1=0,a2=31,l0=5,l1=2,c0=255,c1=4
 
 ![image](https://github.com/user-attachments/assets/1edb058c-8b34-4fa5-9359-aedfd23daa93)
+
+#### Step 2: Create entities from the received payload
+Since the data from the B2500 is received as a single payload/string, it is required to extract the data from this string and parse it to entities. In the documentation accessable via the MQTT configuration the contends of the payload are described. With the following entry into the *configuration.yaml* file of home assistant, the B2500 payload is parsed into entities which can be used as sensors.
+> [!NOTE]
+> The expire time of the entities will help to detect if the connection between home assistant and the B2500 is lost or unstable.
+
+````
+mqtt:
+  - sensor:
+    - name: "B2500 Solar 1 Input Power"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      value_template: "{{ value.split('w1=')[1].split(',')[0] }}"
+      unique_id: "b2500_solar_1_input_power"
+      expire_after: 90
+
+    - name: "B2500 Solar 2 Input Power"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      value_template: "{{ value.split('w2=')[1].split(',')[0] }}"
+      unique_id: "b2500_solar_2_input_power"
+      expire_after: 90
+
+    - name: "B2500 Battery Percentage"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "%"
+      device_class: battery
+      value_template: "{{ value.split('pe=')[1].split(',')[0] }}"
+      unique_id: "b2500_battery_percentage"
+      expire_after: 90
+
+    - name: "B2500 Device Version Number"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('vv=')[1].split(',')[0] }}"
+      unique_id: "b2500_device_version_number"
+      expire_after: 90
+
+    - name: "B2500 Charging Settings"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('cs=')[1].split(',')[0] }}"
+      unique_id: "b2500_charging_settings"
+      expire_after: 90
+
+    - name: "B2500 Discharge Settings"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('cd=')[1].split(',')[0] }}"
+      unique_id: "b2500_discharge_settings"
+      expire_after: 90
+
+    - name: "B2500 AM"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('am=')[1].split(',')[0] }}"
+      unique_id: "b2500_am"
+      expire_after: 90
+
+    - name: "B2500 DOD Discharge Depth"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "%"
+      value_template: "{{ value.split('do=')[1].split(',')[0] }}"
+      unique_id: "b2500_dod_discharge_depth"
+      expire_after: 90
+
+    - name: "B2500 Battery Output Threshold"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "W"
+      value_template: "{{ value.split('lv=')[1].split(',')[0] }}"
+      unique_id: "b2500_battery_output_threshold"
+      expire_after: 90
+
+    - name: "B2500 Scene"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('cj=')[1].split(',')[0] }}"
+      unique_id: "b2500_scene"
+      expire_after: 90
+
+    - name: "B2500 Battery Capacity"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "Wh"
+      value_template: "{{ value.split('kn=')[1].split(',')[0] }}"
+      unique_id: "b2500_battery_capacity"
+      expire_after: 90
+
+    - name: "B2500 Output Power 1"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "W"
+      value_template: "{{ value.split('g1=')[1].split(',')[0] }}"
+      unique_id: "b2500_output_power_1"
+      expire_after: 90
+
+    - name: "B2500 Output Power 2"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "W"
+      value_template: "{{ value.split('g2=')[1].split(',')[0] }}"
+      unique_id: "b2500_output_power_2"
+      expire_after: 90
+
+    - name: "B2500 Discharge Setting Mode"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('md=')[1].split(',')[0] }}"
+      unique_id: "b2500_discharge_setting_mode"
+      expire_after: 90
+      
+    - name: "B2500 Time1 Start Time"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('e1=')[1].split(',')[0] }}"
+      unique_id: "b2500_time1_start_time"
+      expire_after: 90
+
+    - name: "B2500 Time1 End Time"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('f1=')[1].split(',')[0] }}"
+      unique_id: "b2500_time1_end_time"
+      expire_after: 90
+
+    - name: "B2500 Time1 Output Value"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "W"
+      value_template: "{{ value.split('h1=')[1].split(',')[0] }}"
+      unique_id: "b2500_time1_output_value"
+      expire_after: 90
+
+    - name: "B2500 Time2 Start Time"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('e2=')[1].split(',')[0] }}"
+      unique_id: "b2500_time2_start_time"
+      expire_after: 90
+
+    - name: "B2500 Time2 End Time"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('f2=')[1].split(',')[0] }}"
+      unique_id: "b2500_time2_end_time"
+      expire_after: 90
+
+    - name: "B2500 Time2 Output Value"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "W"
+      value_template: "{{ value.split('h2=')[1].split(',')[0] }}"
+      unique_id: "b2500_time2_output_value"
+      expire_after: 90
+
+    - name: "B2500 Time3 Start Time"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('e3=')[1].split(',')[0] }}"
+      unique_id: "b2500_time3_start_time"
+      expire_after: 90
+
+    - name: "B2500 Time3 End Time"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('f3=')[1].split(',')[0] }}"
+      unique_id: "b2500_time3_end_time"
+      expire_after: 90
+
+    - name: "B2500 Time3 Output Value"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "W"
+      value_template: "{{ value.split('h3=')[1].split(',')[0] }}"
+      unique_id: "b2500_time3_output_value"
+      expire_after: 90
+
+    - name: "B2500 Minimum Temperature of Battery Cells"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "°C"
+      value_template: "{{ value.split('tl=')[1].split(',')[0] }}"
+      unique_id: "b2500_min_temp_battery_cells"
+      expire_after: 90
+
+    - name: "B2500 Maximum Temperature of Battery Cells"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "°C"
+      value_template: "{{ value.split('th=')[1].split(',')[0] }}"
+      unique_id: "b2500_max_temp_battery_cells"
+      expire_after: 90
+
+    - name: "B2500 Chip FC4 Version Number"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      value_template: "{{ value.split('fc=')[1].split(',')[0] }}"
+      unique_id: "b2500_chip_fc4_version"
+      expire_after: 90
+
+    - name: "B2500 Host Battery capacity"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+      value_template: "{{ value.split('a0=')[1].split(',')[0] }}"
+      unique_id: "b2500_host_battery_capacity"
+      expire_after: 90
+
+    - name: "B2500 Extra Battery 1 capacity"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+      value_template: "{{ value.split('a1=')[1].split(',')[0] }}"
+      unique_id: "b2500_speichererweiterung1_capacity"
+      expire_after: 90
+
+    - name: "B2500 Extra Battery 2 capacity"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+      value_template: "{{ value.split('a2=')[1].split(',')[0] }}"
+      unique_id: "b2500_extra_battery_2_capacity"
+      expire_after: 90
+
+
+  - binary_sensor:
+    - name: "B2500 Solar Input Status 1"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      payload_on: "1"
+      payload_off: "0"
+      value_template: "{{ value.split('p1=')[1].split(',')[0] }}"
+      unique_id: "b2500_solar_input_status_1"
+      expire_after: 90
+
+    - name: "B2500 Solar Input Status 2"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      payload_on: "1"
+      payload_off: "0"
+      value_template: "{{ value.split('p2=')[1].split(',')[0] }}"
+      unique_id: "b2500_solar_input_status_2"
+      expire_after: 90
+
+    - name: "B2500 Is Power Pack 1 Connected"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      payload_on: "1"
+      payload_off: "0"
+      value_template: "{{ value.split('b1=')[1].split(',')[0] }}"
+      unique_id: "b2500_power_pack_1_connected"
+      expire_after: 90
+
+    - name: "B2500 Is Power Pack 2 Connected"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      payload_on: "1"
+      payload_off: "0"
+      value_template: "{{ value.split('b2=')[1].split(',')[0] }}"
+      unique_id: "b2500_power_pack_2_connected"
+      expire_after: 90
+
+    - name: "B2500 Output State 1"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      payload_on: "1"
+      payload_off: "0"
+      value_template: "{{ value.split('o1=')[1].split(',')[0] }}"
+      unique_id: "b2500_output_state_1"
+      expire_after: 90
+
+    - name: "B2500 Output State 2"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      payload_on: "1"
+      payload_off: "0"
+      value_template: "{{ value.split('o2=')[1].split(',')[0] }}"
+      unique_id: "b2500_output_state_2"
+      expire_after: 90
+
+    - name: "B2500 Time1 Enable Status"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      payload_on: "1"
+      payload_off: "0"
+      value_template: "{{ value.split('d1=')[1].split(',')[0] }}"
+      unique_id: "b2500_time1_enable_status"
+      expire_after: 90
+
+    - name: "B2500 Time2 Enable Status"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      payload_on: "1"
+      payload_off: "0"
+      value_template: "{{ value.split('d2=')[1].split(',')[0] }}"
+      unique_id: "b2500_time2_enable_status"
+      expire_after: 90
+
+    - name: "B2500 Time3 Enable Status"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      payload_on: "1"
+      payload_off: "0"
+      value_template: "{{ value.split('d3=')[1].split(',')[0] }}"
+      unique_id: "b2500_time3_enable_status"
+      expire_after: 90
+
+    - name: "B2500 Charging Temperature Alarm"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      payload_on: "1"
+      payload_off: "0"
+      value_template: "{{ value.split('tc=')[1].split(',')[0] }}"
+      unique_id: "b2500_charging_temp_alarm"
+      expire_after: 90
+
+    - name: "B2500 Discharge Temperature Alarm"
+      state_topic: "hame_energy/HMK-2/device/DEVICE-ID/ctrl"
+      payload_on: "1"
+      payload_off: "0"
+      value_template: "{{ value.split('tf=')[1].split(',')[0] }}"
+      unique_id: "b2500_discharge_temp_alarm"
+      expire_after: 90
+````
+
+#### Step 3: Calculate the required output power of the B2500 solar battery
+> [!TIP]
+> For every of the following helper entities the sensor template is used.
+
+In order to achieve zero power control it is neccessary to determine the power draw of the consumers in the building.
+Since the power is measured on the energy meter ````tasmota_lk13be_current```` and also feedback of the output power of the B2500 is received, we can calculate the consumer power ````electrical_consumption```` draw by simple substraction. Keep in mind that the output power of the B2500 is split over two outputs (````b2500_output_power_1```` and ````b2500_output_power_2````). The following template is used to create the entity ````electrical_consumption````:
+````
+{{ states('sensor.b2500_output_power_1') | float(0)
++ states('sensor.b2500_output_power_2') | float(0)
++ states('sensor.tasmota_lk13be_current') | float(0) }}
+````
+
+The next helper entity calculates the power setpoint ````solar_battery_output_power_setpoint```` based on the intended power on the electricity meter. For the intended power on the electricity meter an input number helper entity is used which enables also setpoints apart from zero.
+````
+{{ states('sensor.electrical_consumption') | float(0)
+- states('input_number.electricity_meter_power_setpoint') | float(0) }}
+````
+
+When controlling the B2500 solar battery it can be observed, that the requested power setpoint ````b2500_battery_output_threshold```` and the actual output power ````b2500_output_power_total```` of the B2500 do not always match.
+This problem is especially noticable for low output power setpoints:
+
+![image](https://github.com/user-attachments/assets/a0150331-3922-46fc-a085-cda20393f12d)
+
+To eliminate this issue, the error between the intended setpoint and the actual output is calculated as a new helper entity ````remaining_error_output_power_setpoint````.
+This new entity is later used to compensate the error.
+````
+{{ [states('sensor.b2500_battery_output_threshold') | float(0)
+- states('sensor.b2500_output_power_total') | float(0), 0] | max
+if states('binary_sensor.b2500_pv_output_active') == 'on' else 0}}
+````
+
+The last entity required is the corrected power setpoint ````solar_battery_output_power_setpoint_corrected````, which is also the setpoint that will be sent via MQTT to the B2500 solar battery. Since the battery is not able to output power below 80 watts or above 800 watts, the setpoint is limited accordingly.
+````
+{{ [[states('sensor.solar_battery_output_power_setpoint') | float(0)
++ states('sensor.remaining_error_output_power_setpoint') | float(0), 80] | max, 800] | min }}
+````
+
+#### Step 4: Send new output power setpoints to the B2500 Solar Battery periodically
+To send new output power setpoints to the B2500 Solar Battery an automation can be used.
+The following automation is triggered every time the state of the IR reading head is changed, e.g. a new value is received.
+Afterwards new data is requested from the B2500 solar battery by sending the payload cd=01.
+Once new data is received and a new setpoint is calculated, a payload is sent to the solar battery with the updated value.
+> [!NOTE]
+> Implementing the automation in this way features the benefit, that it is only triggered if a new power reading from the smart meter is avaliable.
+
+> [!NOTE]
+> The payload sent to set the output power is typically intended to set a constant output power for a given time interval.
+> Eventhough the power setpoint is not intended for frequent changes the response time of the B2500 solar battery can keep up with periodic changes every 10 seconds.
+
+````
+alias: B2500 Set Output Power
+description: ""
+triggers:
+  - trigger: state
+    entity_id:
+      - sensor.tasmota_lk13be_current
+    enabled: true
+conditions: []
+actions:
+  - sequence:
+      - metadata: {}
+        data:
+          qos: 0
+          retain: true
+          topic: hame_energy/HMK-2/App/DEVICE-ID/ctrl
+          payload: cd=01
+        action: mqtt.publish
+      - wait_for_trigger:
+          - trigger: state
+            entity_id:
+              - sensor.solar_battery_output_power_setpoint_corrected
+        timeout:
+          hours: 0
+          minutes: 0
+          seconds: 30
+      - action: mqtt.publish
+        metadata: {}
+        data:
+          retain: true
+          topic: hame_energy/HMK-2/App/DEVICE-ID/ctrl
+          payload: >-
+            cd=07,md=0,a1=1,b1=0:00,e1=23:59,v1={{
+            states('sensor.solar_battery_output_power_setpoint_corrected') | round(0)
+            }},a2=0,b2=0:00,e2=23:59,v2=0,a3=0,b3=0:00,e3=23:59,v3=0
+          qos: 0
+mode: single
+````
+
+#### Outcome
+The control via home assistant keeps the measured power on the smart meter at the intended setpoint by covering the electrical consumption with the output of the B2500 solar battery:
+
+![image](https://github.com/user-attachments/assets/2fee9322-3b1c-4e25-a099-1d7baaf1c910)
