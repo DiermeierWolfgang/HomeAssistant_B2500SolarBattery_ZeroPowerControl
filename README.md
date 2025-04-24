@@ -71,7 +71,7 @@ Fill out the data with your MQTT broker details from home assistant.
 
 If the setup was correct you should be able to request and receive data of the B2500 via home assistant.
 
-The current data can be requested by sending the payload cd=01 on the publication topic mentioned in the MQTT configuration of the B2500 hame_energy/HMK-2/App/DEVICE-ID/ctrl:
+The current data can be requested by sending the payload ````cd=01```` on the publication topic mentioned in the MQTT configuration of the B2500 hame_energy/HMK-2/App/DEVICE-ID/ctrl:
 
 ![image](https://github.com/user-attachments/assets/4d59ef68-932e-40cc-bb06-41c9e98841a2)
 
@@ -82,8 +82,12 @@ All data is sent in one payload. The exact contents of the payload will depend o
 ![image](https://github.com/user-attachments/assets/1edb058c-8b34-4fa5-9359-aedfd23daa93)
 
 #### Step 2: Create entities from the received payload
-Since the data from the B2500 is received as a single payload/string, it is required to extract the data from this string and parse it to entities. In the documentation accessable via the MQTT configuration the contends of the payload are described. With the following entry into the *configuration.yaml* file of home assistant, the B2500 payload is parsed into entities which can be used as sensors.
-> [!NOTE]
+Since the data from the B2500 is received as a single payload/string, it is required to extract the data from this string and parse it to entities. In the documentation accessable via the MQTT configuration the contends of the payload are described:
+
+![image](https://github.com/user-attachments/assets/58e4276b-2a68-458a-a644-5952af2dfcc3)
+
+With the following entry into the *configuration.yaml* file of home assistant, the B2500 payload is parsed into entities which can be used as sensors.
+> [!TIP]
 > The expire time of the entities will help to detect if the connection between home assistant and the B2500 is lost or unstable.
 
 ````
@@ -421,9 +425,9 @@ The last entity required is the corrected power setpoint ````solar_battery_outpu
 #### Step 4: Send new output power setpoints to the B2500 Solar Battery periodically
 To send new output power setpoints to the B2500 Solar Battery an automation can be used.
 The following automation is triggered every time the state of the IR reading head is changed, e.g. a new value is received.
-Afterwards new data is requested from the B2500 solar battery by sending the payload cd=01.
+Afterwards new data is requested from the B2500 solar battery by sending the payload ````cd=01````.
 Once new data is received and a new setpoint is calculated, a payload is sent to the solar battery with the updated value.
-> [!NOTE]
+> [!TIP]
 > Implementing the automation in this way features the benefit, that it is only triggered if a new power reading from the smart meter is avaliable.
 
 > [!NOTE]
@@ -470,6 +474,6 @@ mode: single
 ````
 
 #### Outcome
-The control via home assistant keeps the measured power on the smart meter at the intended setpoint by covering the electrical consumption with the output of the B2500 solar battery:
+The control via home assistant keeps the measured power on the smart meter at the intended setpoint by compensating the electrical consumption with the output of the B2500 solar battery:
 
 ![image](https://github.com/user-attachments/assets/2fee9322-3b1c-4e25-a099-1d7baaf1c910)
