@@ -400,19 +400,18 @@ Since the power is measured on the energy meter ````tasmota_lk13be_current```` a
 ````
 
 The next helper entity calculates the power setpoint ````solar_battery_output_power_setpoint```` based on the intended power on the electricity meter. For the intended power on the electricity meter an input number helper entity is used which enables also setpoints apart from zero.
-> [!TIP]
-> It can be useful to stay slightly above 0 watts as the intended power on the electricity meter.
-> This way small fluctuations will not cause energy from the battery being "lost" into the powergrid.
-> This might be relevant if you don't receive any money from the energy provider when feeding energy back into the power grid.
-> In this case it is more feasable to keep the energy in your battery until you might need it at night or on rainy days.
->
-> ![image](https://github.com/user-attachments/assets/32e90ef1-616a-4e86-b8d9-a15567674df8)
-
-
 ````
 {{ states('sensor.electrical_consumption') | float(0)
 - states('input_number.electricity_meter_power_setpoint') | float(0) }}
 ````
+> [!TIP]
+> It can be useful to stay slightly above 0 watts as the intended power on the electricity meter.
+> This way small fluctuations will not cause energy from the battery being "lost" into the powergrid.
+>
+> ![image](https://github.com/user-attachments/assets/32e90ef1-616a-4e86-b8d9-a15567674df8)
+>
+>  This might be relevant if you don't receive any money from the energy provider when feeding energy back into the power grid.
+> In this case it is more feasable to keep the energy in your battery until you might need it at night or on rainy days.
 
 When controlling the B2500 solar battery it can be observed, that the requested power setpoint ````b2500_battery_output_threshold```` and the actual output power ````b2500_output_power_total```` of the B2500 do not always match.
 This problem is especially noticable for low output power setpoints:
