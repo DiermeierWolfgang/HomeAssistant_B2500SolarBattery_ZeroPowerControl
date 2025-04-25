@@ -7,6 +7,12 @@ In addition it is explained how the battery is controlled to achieve ~0 Watt con
 ![image](https://github.com/user-attachments/assets/1d6a6b6c-d82f-44b7-89be-9c71baec4f20)
 
 ### Marstek B2500 Solar Battery and inverter
+> [!CAUTION]
+> Be aware of the risks when handling electricity and request professional support for maintenance on mains voltage.
+>
+> Keep in mind that even the DC wiring of the solar panels can pose a fire hasard if the incorrect cable diameter is used.
+> ![image](https://github.com/user-attachments/assets/e5171700-8e27-4bb1-b5e4-682b9282c4ed)
+
 In my case the battery and inverter are placed inside the house to keep the operational temperature between 20°C and 30°C independent of the time of the year.
 The inverter is placed right next to the battery DC output to reduce DC-cabling length (which features higher current and thus higher losses).
 The AC output of the inverter is connected to a wall outlet.
@@ -89,8 +95,6 @@ Since the data from the B2500 is received as a single payload/string, it is requ
 > ![image](https://github.com/user-attachments/assets/58e4276b-2a68-458a-a644-5952af2dfcc3)
 
 With the following entry into the *configuration.yaml* file of home assistant, the B2500 payload is parsed into entities which can be used as sensors.
-> [!TIP]
-> The expire time of the entities will help to detect if the connection between home assistant and the B2500 is lost or unstable.
 
 ````
 mqtt:
@@ -386,18 +390,28 @@ mqtt:
       unique_id: "b2500_discharge_temp_alarm"
       expire_after: 90
 ````
+> [!TIP]
+> The expire time of the entities will help to detect if the connection between home assistant and the B2500 is lost or unstable.
 
-#### Step 3: Calculate the required output power of the B2500 solar battery
+## Control the B2500 via Home Assistant
+### Software Architecture
+
+
+### Determine and transmit the output power setpoint
+#### Step 1: Calculate the required output power of the B2500 solar battery
 > [!TIP]
 > For every of the following helper entities the sensor template is used.
 
 In order to achieve zero power control it is neccessary to determine the power draw of the consumers in the building.
-Since the power is measured on the energy meter ````tasmota_lk13be_current```` and also feedback of the output power of the B2500 is received, we can calculate the consumer power ````electrical_consumption```` draw by simple substraction. Keep in mind that the output power of the B2500 is split over two outputs (````b2500_output_power_1```` and ````b2500_output_power_2````). The following template is used to create the entity ````electrical_consumption````:
+Since the power is measured on the energy meter (````tasmota_lk13be_current````) and also feedback of the output power of the B2500 is received, we can calculate the consumer power draw (````electrical_consumption````) by simple substraction. Keep in mind that the output power of the B2500 is split over two outputs (````b2500_output_power_1```` and ````b2500_output_power_2````).
+
+The following template is used to create the entity ````electrical_consumption````:
 ````
 {{ states('sensor.b2500_output_power_1') | float(0)
 + states('sensor.b2500_output_power_2') | float(0)
 + states('sensor.tasmota_lk13be_current') | float(0) }}
 ````
+
 
 The next helper entity calculates the power setpoint ````solar_battery_output_power_setpoint```` based on the intended power on the electricity meter. For the intended power on the electricity meter an input number helper entity is used which enables also setpoints apart from zero.
 ````
@@ -413,6 +427,7 @@ The next helper entity calculates the power setpoint ````solar_battery_output_po
 >  This might be relevant if you don't receive any money from the energy provider when feeding energy back into the power grid.
 > In this case it is more feasable to keep the energy in your battery until you might need it at night or on rainy days.
 
+
 When controlling the B2500 solar battery it can be observed, that the requested power setpoint ````b2500_battery_output_threshold```` and the actual output power ````b2500_output_power_total```` of the B2500 do not always match.
 This problem is especially noticable for low output power setpoints:
 
@@ -426,19 +441,20 @@ This new entity is later used to compensate the error.
 if states('binary_sensor.b2500_pv_output_active') == 'on' else 0}}
 ````
 
+
 The last entity required is the corrected power setpoint ````solar_battery_output_power_setpoint_corrected````, which is also the setpoint that will be sent via MQTT to the B2500 solar battery. Since the battery is not able to output power below 80 watts or above 800 watts, the setpoint is limited accordingly.
 ````
 {{ [[states('sensor.solar_battery_output_power_setpoint') | float(0)
 + states('sensor.remaining_error_output_power_setpoint') | float(0), 80] | max, 800] | min }}
 ````
 
-#### Step 4: Send new output power setpoints to the B2500 Solar Battery periodically
+#### Step 2: Send the new output power setpoint to the B2500 Solar Battery periodically
 To send new output power setpoints to the B2500 Solar Battery an automation can be used.
 The following automation is triggered every time the state of the IR reading head is changed, e.g. a new value is received.
 Afterwards new data is requested from the B2500 solar battery by sending the payload ````cd=01````.
-Once new data is received and a new setpoint is calculated, a payload is sent to the solar battery with the updated value.
+Once new data is received and a new setpoint is calculated, a payload is sent to the solar battery with the updated setpoint.
 > [!TIP]
-> Implementing the automation in this way features the benefit, that it is only triggered if a new power reading from the smart meter is avaliable.
+> Implementing the automation in this way features the benefit, that it is always triggered once a new power reading from the IR reading head is avaliable.
 
 > [!NOTE]
 > The payload sent to set the output power is typically intended to set a constant output power for a given time interval.
@@ -476,14 +492,170 @@ actions:
           retain: true
           topic: hame_energy/HMK-2/App/DEVICE-ID/ctrl
           payload: >-
-            cd=07,md=0,a1=1,b1=0:00,e1=23:59,v1={{
+            cd=07,md=0,a1={{ states('input_number.b2500_enable_timer_1') |
+            round(0) }},b1=0:00,e1=23:59,v1={{
             states('sensor.solar_battery_output_power_setpoint_corrected') | round(0)
             }},a2=0,b2=0:00,e2=23:59,v2=0,a3=0,b3=0:00,e3=23:59,v3=0
           qos: 0
 mode: single
 ````
+> [!NOTE]
+> As you can see there is an additional entity used in the last payload called ````b2500_enable_timer_1````.
+> The usage of this entity will explained later on when [automated resets and cell balancing](#enable-and-disable-the-b2500-power-output) are implemented.
 
-#### Outcome
+#### Step 3: Observe the control strategy
 The control via home assistant keeps the measured power on the smart meter at the intended setpoint by compensating the electrical consumption with the output of the B2500 solar battery:
 
 ![image](https://github.com/user-attachments/assets/2fee9322-3b1c-4e25-a099-1d7baaf1c910)
+
+> [!TIP]
+> The discrete step time is dependend on the update rate of the IR reading head. In my setup it is set to 10 seconds.
+> In case you want a different step size you can configure this in the tasmota interface of the IR reading head.
+
+### Enable and disable the B2500 power output
+Experience shows that there are situations in which the B2500 solar battery freezes up and requires a reset. In the following example two possible scenarios can be observed.
+- At time 15:40: Only one of the two outputs from the B2500 solar battery is activated
+- At time 16:02: Both outputs are active but they don't react to the demanded setpoint
+
+![image](https://github.com/user-attachments/assets/38401170-0fcf-4545-a9d3-b66cb8ce8437)
+
+To understand how the reset needs to be performed it is important to understand how the B2500 usually behaves under normal operation and after a reset.
+Under normal operating conditions both outputs have approximately the same output power. Which means the commanded output power setpoint is split equally over both outputs.
+
+In case of a reset, the B2500 will behave as follows:
+- At time 12:05: The output is disabled and the output power drops to 0 watts. As soon as the output power reaches 0 watts, the output is activated again
+- At time 12:12: The B2500 activates both outputs at a low power setting (````b2500_output_power_total```` is below 80 watts)
+- At time 12:19: The total output power increases to the output power setpoint
+
+![image](https://github.com/user-attachments/assets/1c50d07f-a94f-41fd-bc5a-529a3f9f4e4f)
+
+> [!IMPORTANT]
+> As shown the startup/reset process takes some time.
+> For this reason home assistant shouldn't reset the B2500 while it is still occupied by the startup process.
+> This would lead to a never-ending reset loop.
+
+#### Disable the B2500 output
+The following automation is used to disable output of the B2500. It can be split into two functions.
+##### 1. Reset due to faulty output
+In case the output power of the B2500 is above 10 watts but significantly below the setpoint in home assistant for more than 10 minutes, the output will be deactivated.
+
+Similarly, the output will be deactivated if the output power of the B2500 is above 10 watts but significantly below the setpoint stored within the B2500 itself for more than 12,5 minutes.
+
+##### 2. Disable to cell balancing
+Another reason for the deactivation of the output is the cell balancing functionality. If cell balancing is active and there is no excess solar power, the output will be disabled. 
+````
+alias: B2500 Disable Output
+description: ""
+triggers:
+  - trigger: numeric_state
+    entity_id:
+      - sensor.b2500_output_power_total
+    above: 30
+    below: sensor.solar_battery_output_power_setpoint
+    value_template: "{{ float(state.state) + 20}}"
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+    id: Deviation from HA-Setpoint
+  - trigger: numeric_state
+    entity_id:
+      - sensor.b2500_output_power_total
+    above: 30
+    below: sensor.b2500_time1_output_value
+    value_template: "{{ float(state.state) + 20}}"
+    for:
+      hours: 0
+      minutes: 12
+      seconds: 30
+    id: Deviation from B2500-Setpoint
+  - trigger: state
+    entity_id:
+      - timer.b2500_cell_balancing
+    to: idle
+    id: Cell balancing
+  - trigger: numeric_state
+    entity_id:
+      - sensor.b2500_solar_total_input_power
+    for:
+      hours: 0
+      minutes: 15
+      seconds: 0
+    id: No excess solar power
+    below: sensor.electrical_consumption
+conditions:
+  - condition: or
+    conditions:
+      - condition: trigger
+        id:
+          - Deviation from HA-Setpoint
+          - Deviation from B2500-Setpoint
+          - Cell balancing
+      - condition: and
+        conditions:
+          - condition: trigger
+            id:
+              - No excess solar power
+          - condition: state
+            entity_id: timer.b2500_cell_balancing
+            state: idle
+actions:
+  - action: input_number.set_value
+    metadata: {}
+    data:
+      value: 0
+    target:
+      entity_id: input_number.b2500_enable_timer_1
+mode: single
+````
+
+#### Enable the B2500 output
+````
+alias: B2500 Set Output
+description: ""
+triggers:
+  - trigger: numeric_state
+    entity_id:
+      - input_number.b2500_enable_timer_1
+    below: 1
+  - trigger: state
+    entity_id:
+      - timer.b2500_cell_balancing
+    to: active
+  - trigger: numeric_state
+    entity_id:
+      - sensor.b2500_solar_total_input_power
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+    value_template: "{{ float(state.state) - 100}}"
+    above: sensor.electrical_consumption
+    id: Excess solar power
+conditions:
+  - condition: or
+    conditions:
+      - condition: state
+        entity_id: timer.b2500_cell_balancing
+        state: active
+      - condition: trigger
+        id:
+          - Excess solar power
+actions:
+  - wait_for_trigger:
+      - trigger: numeric_state
+        entity_id:
+          - sensor.b2500_output_power_total
+        below: 10
+    timeout:
+      hours: 0
+      minutes: 1
+      seconds: 0
+  - action: input_number.set_value
+    metadata: {}
+    data:
+      value: 1
+    target:
+      entity_id: input_number.b2500_enable_timer_1
+mode: single
+````
