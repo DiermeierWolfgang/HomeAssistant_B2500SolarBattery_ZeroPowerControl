@@ -13,7 +13,7 @@ In addition it is explained how the battery is controlled to achieve ~0 Watt con
 > Keep in mind that even the DC wiring of the solar panels can pose a fire hasard if the incorrect cable diameter is used.
 > ![image](https://github.com/user-attachments/assets/e5171700-8e27-4bb1-b5e4-682b9282c4ed)
 
-In my case the battery and inverter are placed inside the house to keep the operational temperature between 20°C and 30°C independent of the time of the year.
+In my case the battery and inverter are placed inside the house to keep the ambient temperature between 20°C and 30°C independent of the time of the year.
 The inverter is placed right next to the battery DC output to reduce DC-cabling length (which features higher current and thus higher losses).
 The AC output of the inverter is connected to a wall outlet.
 
