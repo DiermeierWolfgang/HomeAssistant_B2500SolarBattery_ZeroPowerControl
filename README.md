@@ -434,7 +434,7 @@ The next helper entity calculates the power setpoint (````solar_battery_output_p
 > In this case it is more feasable to keep the energy in your battery until you might need it at night or on rainy days.
 
 
-When controlling the B2500 solar battery it can be observed, that the requested power setpoint (````b2500_battery_output_threshold````) and the actual output power (````b2500_output_power_total````) of the B2500 do not always match.
+When controlling the B2500 solar battery, it can be observed that the requested power setpoint (````b2500_battery_output_threshold````) and the actual output power (````b2500_output_power_total````) of the B2500 do not always match.
 This problem is especially noticable for low output power setpoints:
 
 ![image](https://github.com/user-attachments/assets/a0150331-3922-46fc-a085-cda20393f12d)
@@ -540,7 +540,7 @@ In case of a reset, the B2500 will behave as follows:
 > This would lead to a never-ending reset loop.
 
 #### Disable the B2500 output
-The following automation is used to disable output of the B2500. It can be split into two functions.
+The following automation is used to disable the output of the B2500. It can be split into two functions.
 ##### 1. Reset due to faulty output
 In case the output power of the B2500 is above 10 watts but significantly below the setpoint in home assistant for more than 10 minutes, the output will be deactivated.
 
