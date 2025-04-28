@@ -1,6 +1,6 @@
 # Home Assistant - B2500 Solar Battery - Zero Power Control
 This repository describes the steps required to control a Marstek B2500 in Home Assistant.
-In addition it is explained how the battery is controlled to achieve ~0 Watt consumption at the electricity meter.
+In addition it is explained how the battery is controlled to achieve ~0 watt consumption at the electricity meter.
 
 ## Hardware Setup
 ### Hardware Architecture
@@ -11,6 +11,7 @@ In addition it is explained how the battery is controlled to achieve ~0 Watt con
 > Be aware of the risks when handling electricity and request professional support for maintenance on mains voltage.
 >
 > Keep in mind that even the DC wiring of the solar panels can pose a fire hasard if the incorrect cable diameter is used.
+> 
 > ![image](https://github.com/user-attachments/assets/e5171700-8e27-4bb1-b5e4-682b9282c4ed)
 
 In my case the battery and inverter are placed inside the house to keep the ambient temperature between 20°C and 30°C independent of the time of the year.
@@ -20,7 +21,7 @@ The AC output of the inverter is connected to a wall outlet.
 ![image](https://github.com/user-attachments/assets/d72f79e1-0507-4dd4-8dd7-9a73d66bdb70)
 
 ### PV-Panels
-4 standard PV-Panels are used. Since the battery only features two inputs, the panels are devided into two parallel pairs.
+4 PV-Panels are used. Since the battery only features two inputs, the panels are devided into two parallel pairs.
 As shown in the picture, the DC cables of the panels pass through the wall and connect to the DC input of the B2500 solar battery.
 
 ![image](https://github.com/user-attachments/assets/096564f8-7fe3-4817-8827-a38a02c69207)
@@ -29,16 +30,22 @@ As shown in the picture, the DC cables of the panels pass through the wall and c
 ### IR reading head
 > [!IMPORTANT]
 > A 5V USB supply in the fuse box is required to supply the IR reading head.
+> 
+> ![image](https://github.com/user-attachments/assets/410a86ef-adcd-4ef3-a4c6-26bead85488c)
 
-The IR reading head is used to extract the power reading from the smart meter installed by the electricity provider inside your fuse box.
-Measuring the power on the smart meter is required to implement the zero power control in home assitant.
+
+The IR reading head is used to extract the power reading from the electricity meter installed by the electricity provider inside your fuse box.
+Measuring the power on the electricity meter is required to implement the zero power control in home assitant.
 For my setup the [WIFI based Tasmota IR reading head from the company Stromleser](https://amzn.eu/d/bLCDqwN) is used.
+
+![image](https://github.com/user-attachments/assets/adc9b7be-b753-47f8-844b-d9d7aec48fd1)
+
 There are also other versions from different manufacturers avaliable.
-It must be placed on the optical interface of the smart meter.
+It must be placed on the optical interface of the electricity meter.
 > [!TIP]
-> There are some smart meters with dimm IR transmitters in the optical interface which makes it impossible for the IR reading head to receive information.
+> There are some digital electricity meters with dimm IR transmitters in the optical interface which makes it impossible for the IR reading head to receive information.
 > You can check this by filming the optical interface with a camera which makes the emitted IR light visible to the human eye.
-> In my case (Logarex smart meter) this required me to increase the sensitivity of the IR reading head by soldering a different resistor to the voltage divider.
+> In my case (Logarex electricity meter) this required me to increase the sensitivity of the IR reading head by soldering a different resistor to the voltage divider.
 
 ## Integrate the components to Home Assistant
 > [!IMPORTANT]
@@ -46,10 +53,11 @@ It must be placed on the optical interface of the smart meter.
 
 ###  IR reading head
 To set up the Tasmota IR reading head you can simply follow the [stromleser documentation](https://stromleser.de/en/blogs/news/stromleser-wifi-einrichten-und-einen-stromleser-ttl-lese-kopf-hinzufugen-mit-tasmota).
-Depending on your smart meter you will need different [SML-Scripts](https://tasmota.github.io/docs/Smart-Meter-Interface/#smart-meter-descriptors) to read the data from your smart meter.
+Depending on your electricity meter you will need different [SML-Scripts](https://tasmota.github.io/docs/Smart-Meter-Interface/#smart-meter-descriptors) to read the data from your electricity meter.
 > [!TIP]
-> You might have to enter a PIN before your smart meter shows detailed information that is required for the zero power control (current power).
-> This PIN is either in your energy provider documents can be requested from your energy provider.
+> By default most electricity meters only show the total consumed energy reading. You might have to enter a PIN into your electricity meter before detailed information is shown that is required for the zero power control (current power).
+> 
+> This PIN is either in your energy provider documents or can be requested from your energy provider.
 
 ### B2500 Solar Battery
 By default the B2500 Solar Battery is controlled by the "Power Zero" app.
@@ -87,12 +95,13 @@ All data is sent in one payload. The exact contents of the payload will depend o
 
 ![image](https://github.com/user-attachments/assets/1edb058c-8b34-4fa5-9359-aedfd23daa93)
 
-#### Step 2: Create entities from the received payload
-Since the data from the B2500 is received as a single payload/string, it is required to extract the data from this string and parse it to entities.
 > [!TIP]
 > In the documentation accessable via the MQTT configuration the contends of the payload are described:
 > 
 > ![image](https://github.com/user-attachments/assets/58e4276b-2a68-458a-a644-5952af2dfcc3)
+
+#### Step 2: Create entities from the received payload
+Since the data from the B2500 is received as a single payload/string, it is required to extract the data from this string and parse it to entities.
 
 With the following entry into the *configuration.yaml* file of home assistant, the B2500 payload is parsed into entities which can be used as sensors.
 
@@ -394,9 +403,6 @@ mqtt:
 > The expire time of the entities will help to detect if the connection between home assistant and the B2500 is lost or unstable.
 
 ## Control the B2500 via Home Assistant
-### Software Architecture
-
-
 ### Determine and transmit the output power setpoint
 #### Step 1: Calculate the required output power of the B2500 solar battery
 > [!TIP]
@@ -438,9 +444,8 @@ This new entity is later used to compensate the error.
 ````
 {{ [states('sensor.b2500_battery_output_threshold') | float(0)
 - states('sensor.b2500_output_power_total') | float(0), 0] | max
-if states('binary_sensor.b2500_pv_output_active') == 'on' else 0}}
+if states('sensor.b2500_output_power_total') | float(0) >= 80 else 0}}
 ````
-
 
 The last entity required is the corrected power setpoint ````solar_battery_output_power_setpoint_corrected````, which is also the setpoint that will be sent via MQTT to the B2500 solar battery. Since the battery is not able to output power below 80 watts or above 800 watts, the setpoint is limited accordingly.
 ````
@@ -458,7 +463,7 @@ Once new data is received and a new setpoint is calculated, a payload is sent to
 
 > [!NOTE]
 > The payload sent to set the output power is typically intended to set a constant output power for a given time interval.
-> Eventhough the power setpoint is not intended for frequent changes the response time of the B2500 solar battery can keep up with periodic changes every 10 seconds.
+> Eventhough the power setpoint is not intended for frequent changes, the response time of the B2500 solar battery can keep up with periodic changes every 10 seconds.
 
 ````
 alias: B2500 Set Output Power
@@ -504,7 +509,7 @@ mode: single
 > The usage of this entity will explained later on when [automated resets and cell balancing](#enable-and-disable-the-b2500-power-output) are implemented.
 
 #### Step 3: Observe the control strategy
-The control via home assistant keeps the measured power on the smart meter at the intended setpoint by compensating the electrical consumption with the output of the B2500 solar battery:
+The control via home assistant keeps the measured power on the electricity meter at the intended setpoint by compensating the electrical consumption with the output of the B2500 solar battery:
 
 ![image](https://github.com/user-attachments/assets/2fee9322-3b1c-4e25-a099-1d7baaf1c910)
 
@@ -544,7 +549,7 @@ Similarly, the output will be deactivated if the output power of the B2500 is ab
 ##### 2. Disable to cell balancing
 Another reason for the deactivation of the output is the cell balancing functionality. If cell balancing is active and there is no excess solar power, the output will be disabled. 
 ````
-alias: B2500 Disable Output
+alias: B2500 disable output
 description: ""
 triggers:
   - trigger: numeric_state
@@ -555,25 +560,14 @@ triggers:
     value_template: "{{ float(state.state) + 20}}"
     for:
       hours: 0
-      minutes: 10
+      minutes: 3
       seconds: 0
-    id: Deviation from HA-Setpoint
-  - trigger: numeric_state
-    entity_id:
-      - sensor.b2500_output_power_total
-    above: 30
-    below: sensor.b2500_time1_output_value
-    value_template: "{{ float(state.state) + 20}}"
-    for:
-      hours: 0
-      minutes: 12
-      seconds: 30
-    id: Deviation from B2500-Setpoint
+    id: Deviation to Setpoint
   - trigger: state
     entity_id:
       - timer.b2500_cell_balancing
     to: idle
-    id: Cell balancing
+    id: Cell Balancing
   - trigger: numeric_state
     entity_id:
       - sensor.b2500_solar_total_input_power
@@ -581,24 +575,26 @@ triggers:
       hours: 0
       minutes: 15
       seconds: 0
-    id: No excess solar power
+    id: No Excess Production
     below: sensor.electrical_consumption
 conditions:
   - condition: or
     conditions:
       - condition: trigger
         id:
-          - Deviation from HA-Setpoint
-          - Deviation from B2500-Setpoint
-          - Cell balancing
+          - Cell Balancing
+          - Deviation to Setpoint
       - condition: and
         conditions:
           - condition: trigger
             id:
-              - No excess solar power
+              - No Excess Production
           - condition: state
             entity_id: timer.b2500_cell_balancing
             state: idle
+          - condition: numeric_state
+            entity_id: sensor.b2500_battery_percentage
+            below: 100
 actions:
   - action: input_number.set_value
     metadata: {}
@@ -610,6 +606,7 @@ mode: single
 ````
 
 #### Enable the B2500 output
+After the output was disabled, a check will be performed if the reset was successful. If the output power did drop to 0 watts the output will be enabled again. The output will also be enabled again, if the cell balancing was successfully performed.
 ````
 alias: B2500 Set Output
 description: ""
@@ -649,7 +646,7 @@ actions:
         below: 10
     timeout:
       hours: 0
-      minutes: 1
+      minutes: 2
       seconds: 0
   - action: input_number.set_value
     metadata: {}
