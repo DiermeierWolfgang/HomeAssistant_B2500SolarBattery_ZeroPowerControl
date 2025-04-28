@@ -419,7 +419,7 @@ The following template is used to create the entity ````electrical_consumption``
 ````
 
 
-The next helper entity calculates the power setpoint ````solar_battery_output_power_setpoint```` based on the intended power on the electricity meter. For the intended power on the electricity meter an input number helper entity is used which enables also setpoints apart from zero.
+The next helper entity calculates the power setpoint (````solar_battery_output_power_setpoint````) based on the intended power on the electricity meter. For the intended power on the electricity meter an input number helper entity is used which enables also setpoints apart from zero.
 ````
 {{ states('sensor.electrical_consumption') | float(0)
 - states('input_number.electricity_meter_power_setpoint') | float(0) }}
@@ -434,12 +434,12 @@ The next helper entity calculates the power setpoint ````solar_battery_output_po
 > In this case it is more feasable to keep the energy in your battery until you might need it at night or on rainy days.
 
 
-When controlling the B2500 solar battery it can be observed, that the requested power setpoint ````b2500_battery_output_threshold```` and the actual output power ````b2500_output_power_total```` of the B2500 do not always match.
+When controlling the B2500 solar battery it can be observed, that the requested power setpoint (````b2500_battery_output_threshold````) and the actual output power (````b2500_output_power_total````) of the B2500 do not always match.
 This problem is especially noticable for low output power setpoints:
 
 ![image](https://github.com/user-attachments/assets/a0150331-3922-46fc-a085-cda20393f12d)
 
-To eliminate this issue, the error between the intended setpoint and the actual output is calculated as a new helper entity ````remaining_error_output_power_setpoint````.
+To eliminate this issue, the error between the intended setpoint and the actual output is calculated as a new helper entity (````remaining_error_output_power_setpoint````).
 This new entity is later used to compensate the error.
 ````
 {{ [states('sensor.b2500_battery_output_threshold') | float(0)
@@ -447,7 +447,7 @@ This new entity is later used to compensate the error.
 if states('sensor.b2500_output_power_total') | float(0) >= 80 else 0}}
 ````
 
-The last entity required is the corrected power setpoint ````solar_battery_output_power_setpoint_corrected````, which is also the setpoint that will be sent via MQTT to the B2500 solar battery. Since the battery is not able to output power below 80 watts or above 800 watts, the setpoint is limited accordingly.
+The last entity required is the corrected power setpoint (````solar_battery_output_power_setpoint_corrected````), which is also the setpoint that will be sent via MQTT to the B2500 solar battery. Since the battery is not able to output power below 80 watts or above 800 watts, the setpoint is limited accordingly.
 ````
 {{ [[states('sensor.solar_battery_output_power_setpoint') | float(0)
 + states('sensor.remaining_error_output_power_setpoint') | float(0), 80] | max, 800] | min }}
