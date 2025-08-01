@@ -75,7 +75,8 @@ To eliminate this problem the B2500 solar battery can also be controlled via MQT
 > [!WARNING]
 > Enabling MQTT will void the warranty of the B2500 solar battery.
 
-By default MQTT is disabled and can be enabled through the [cloud service](https://eu.hamedata.com/app/AfterSales/index.html).
+By default MQTT is disabled and can be enabled through the [cloud service](https://eu.hamedata.com/app/AfterSales/index.html) (currently out of service 01.08.2025) or through [this tool](https://tomquist.github.io/hame-relay/b2500.html) described in [tomquist's hm2mqtt repository](https://github.com/tomquist/hm2mqtt?tab=readme-ov-file).
+
 
 After MQTT is enabled a new section will appear in your settings within the power zero app.
 Fill out the data with your MQTT broker details from home assistant.
